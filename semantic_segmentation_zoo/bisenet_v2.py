@@ -995,17 +995,56 @@ class BiseNetV2(cnn_basenet.CNNBaseModel):
             )
         return output_tensor
 
-    def build_binary_segmentation_branch(self, input_tensor, name):
-        """
+    # def build_binary_segmentation_branch(self, input_tensor, name):
+    #     """
 
-        :param input_tensor:
-        :param name:
-        :return:
-        """
+    #     :param input_tensor:
+    #     :param name:
+    #     :return:
+    #     """
+    #     input_tensor_size = input_tensor.get_shape().as_list()[1:3]
+    #     output_tensor_size = [int(tmp * 8) for tmp in input_tensor_size]
+
+    #     with tf.variable_scope(name_or_scope=name):
+    #         output_tensor = self._conv_block(
+    #             input_tensor=input_tensor,
+    #             k_size=3,
+    #             output_channels=64,
+    #             stride=1,
+    #             name='conv_3x3',
+    #             use_bias=False,
+    #             need_activate=True
+    #         )
+    #         output_tensor = self._conv_block(
+    #             input_tensor=output_tensor,
+    #             k_size=1,
+    #             output_channels=128,
+    #             stride=1,
+    #             name='conv_1x1',
+    #             use_bias=False,
+    #             need_activate=True
+    #         )
+    #         output_tensor = self._conv_block(
+    #             input_tensor=output_tensor,
+    #             k_size=1,
+    #             output_channels=self._class_nums,
+    #             stride=1,
+    #             name='final_conv',
+    #             use_bias=False,
+    #             need_activate=False
+    #         )
+    #         output_tensor = tf.image.resize_bilinear(
+    #             output_tensor,
+    #             output_tensor_size,
+    #             name='binary_logits'
+    #         )
+    #     return output_tensor
+    def build_binary_segmentation_branch(self, input_tensor, name):
         input_tensor_size = input_tensor.get_shape().as_list()[1:3]
         output_tensor_size = [int(tmp * 8) for tmp in input_tensor_size]
 
         with tf.variable_scope(name_or_scope=name):
+            # 第一个3x3卷积
             output_tensor = self._conv_block(
                 input_tensor=input_tensor,
                 k_size=3,
@@ -1015,6 +1054,8 @@ class BiseNetV2(cnn_basenet.CNNBaseModel):
                 use_bias=False,
                 need_activate=True
             )
+            
+            # 第二个1x1卷积
             output_tensor = self._conv_block(
                 input_tensor=output_tensor,
                 k_size=1,
@@ -1024,7 +1065,9 @@ class BiseNetV2(cnn_basenet.CNNBaseModel):
                 use_bias=False,
                 need_activate=True
             )
-            output_tensor = self._conv_block(
+
+            # 最终1x1卷积，存储结果用于Grad-CAM
+            final_conv = self._conv_block(
                 input_tensor=output_tensor,
                 k_size=1,
                 output_channels=self._class_nums,
@@ -1033,12 +1076,26 @@ class BiseNetV2(cnn_basenet.CNNBaseModel):
                 use_bias=False,
                 need_activate=False
             )
+            
+            # 保存最后的卷积层用于Grad-CAM
+            self._net_intermediate_results['final_conv'] = {
+                'data': final_conv,
+                'shape': final_conv.get_shape().as_list()
+            }
+            # print(self._net_intermediate_results['final_conv']['shape'])
+
+            # 对final_conv进行上采样
             output_tensor = tf.image.resize_bilinear(
-                output_tensor,
+                final_conv,
                 output_tensor_size,
                 name='binary_logits'
             )
+
         return output_tensor
+    
+    def get_gradcam_layer(self, layer_name):
+        """获取指定层的输出"""
+        return self._net_intermediate_results.get(layer_name, None)
 
     def build_model(self, input_tensor, name, reuse=False):
         """

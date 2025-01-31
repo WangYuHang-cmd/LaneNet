@@ -1,3 +1,21 @@
+To run the code, using 
+
+`python tools/test_lanenet.py --weights_path ./lanenet/tusimple_lanenet.ckpt --image_path ./data/tusimple_test_image/0.jpg`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # LaneNet-Lane-Detection
 Use tensorflow to implement a Deep Neural Network for real time lane detection mainly based on the IEEE IV conference 
 paper "Towards End-to-End Lane Detection: an Instance Segmentation Approach".You can refer to their paper for details 

@@ -201,14 +201,27 @@ class LaneNetTusimpleMultiTrainer(object):
         self._train_op = tf.group(apply_gradient_op, moving_ave_op, batchnorm_updates_op)
 
         # define prediction
-        self._binary_prediciton, self._instance_prediciton = self._model.inference(
+        # self._binary_prediciton, self._instance_prediciton = self._model.inference(
+        #     input_tensor=self._input_src_image_list[self._chief_gpu_index],
+        #     name='LaneNet',
+        #     reuse=True
+        # )
+        # self._binary_prediciton = tf.identity(self._binary_prediciton, name='binary_segmentation_result')
+        # self._val_binary_prediction, self._val_instance_prediciton = self._val_model.inference(
+        #     input_tensor=self._val_input_src_image,
+        #     name='LaneNet',
+        #     reuse=True
+        # )
+        self._binary_prediciton, self._instance_prediciton, self._cam = self._model.inference(
             input_tensor=self._input_src_image_list[self._chief_gpu_index],
+            target_class=1,
             name='LaneNet',
             reuse=True
         )
-        self._binary_prediciton = tf.identity(self._binary_prediciton, name='binary_segmentation_result')
-        self._val_binary_prediction, self._val_instance_prediciton = self._val_model.inference(
+
+        self._val_binary_prediction, self._val_instance_prediciton, self._val_cam = self._val_model.inference(
             input_tensor=self._val_input_src_image,
+            target_class=1,
             name='LaneNet',
             reuse=True
         )

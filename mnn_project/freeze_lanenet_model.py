@@ -48,12 +48,14 @@ def convert_ckpt_into_pb_file(ckpt_file_path, pb_file_path):
         input_tensor = tf.placeholder(dtype=tf.float32, shape=[1, 256, 512, 3], name='input_tensor')
 
     net = lanenet.LaneNet(phase='test', cfg=CFG)
-    binary_seg_ret, instance_seg_ret = net.inference(input_tensor=input_tensor, name='LaneNet')
+    # binary_seg_ret, instance_seg_ret = net.inference(input_tensor=input_tensor, name='LaneNet')
+    binary_seg_ret, instance_seg_ret, cam = net.inference(input_tensor=input_tensor,target_class=1, name='LaneNet')
 
     with tf.variable_scope('lanenet/'):
         binary_seg_ret = tf.cast(binary_seg_ret, dtype=tf.float32)
         binary_seg_ret = tf.squeeze(binary_seg_ret, axis=0, name='final_binary_output')
         instance_seg_ret = tf.squeeze(instance_seg_ret, axis=0, name='final_pixel_embedding_output')
+        cam = tf.identity(cam, name='cam_output')  # 添加这行
 
     # define moving average version of the learned variables for eval
     with tf.variable_scope(name_or_scope='moving_avg'):
@@ -80,7 +82,8 @@ def convert_ckpt_into_pb_file(ckpt_file_path, pb_file_path):
             output_node_names=[
                 'lanenet/input_tensor',
                 'lanenet/final_binary_output',
-                'lanenet/final_pixel_embedding_output'
+                'lanenet/final_pixel_embedding_output',
+                'lanenet/cam_output'  # 添加cam输出
             ]
         )
 

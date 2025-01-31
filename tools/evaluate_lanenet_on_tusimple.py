@@ -56,7 +56,8 @@ def eval_lanenet(src_dir, weights_path, save_dir):
     input_tensor = tf.placeholder(dtype=tf.float32, shape=[1, 256, 512, 3], name='input_tensor')
 
     net = lanenet.LaneNet(phase='test', cfg=CFG)
-    binary_seg_ret, instance_seg_ret = net.inference(input_tensor=input_tensor, name='LaneNet')
+    # binary_seg_ret, instance_seg_ret = net.inference(input_tensor=input_tensor, name='LaneNet')
+    binary_seg_ret, instance_seg_ret, cam = net.inference(input_tensor=input_tensor, target_class=1, name='LaneNet')
 
     postprocessor = lanenet_postprocess.LaneNetPostProcessor(cfg=CFG)
 
@@ -84,8 +85,8 @@ def eval_lanenet(src_dir, weights_path, save_dir):
             image = image / 127.5 - 1.0
 
             t_start = time.time()
-            binary_seg_image, instance_seg_image = sess.run(
-                [binary_seg_ret, instance_seg_ret],
+            binary_seg_image, instance_seg_image,cam_image = sess.run(
+                [binary_seg_ret, instance_seg_ret, cam],
                 feed_dict={input_tensor: [image]}
             )
             avg_time_cost.append(time.time() - t_start)
@@ -109,6 +110,13 @@ def eval_lanenet(src_dir, weights_path, save_dir):
                 continue
 
             cv2.imwrite(output_image_path, postprocess_result['source_image'])
+            # 添加以下代码
+            cam_heatmap = cv2.applyColorMap(np.uint8(255 * cam_image[0]), cv2.COLORMAP_JET)
+            cv2.imwrite(ops.join(output_image_dir, 'cam_'+input_image_name), cam_heatmap)
+
+            alpha = 0.5
+            overlay = cv2.addWeighted(postprocess_result['source_image'], alpha, cam_heatmap, 1-alpha, 0)
+            cv2.imwrite(ops.join(output_image_dir, 'overlay_'+input_image_name), overlay)
 
     return
 

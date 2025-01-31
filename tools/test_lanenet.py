@@ -16,11 +16,28 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from lanenet_model import lanenet
 from lanenet_model import lanenet_postprocess
 from local_utils.config_utils import parse_config_utils
 from local_utils.log_util import init_logger
+
+from pytorch_grad_cam import GradCAM, HiResCAM, ScoreCAM, GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM, FullGrad
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+from pytorch_grad_cam.utils.image import show_cam_on_image
+from torchvision.models import resnet50
+
+# model = resnet50(pretrained=True)
+# target_layers = [model.layer4[-1]]
+# input_tensor = "/home/henry/Desktop/lanenet-lane-detection/data/training_data_example/image/LKA1.jpg"
+# cam = GradCAM(model=model, target_layers=target_layers)
+# targets = [ClassifierOutputTarget(281)]
+# grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
+# grayscale_cam = grayscale_cam[0, :]
+# visualization = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
+
 
 CFG = parse_config_utils.lanenet_cfg
 LOG = init_logger.get_logger(log_file_name_prefix='lanenet_test')
@@ -89,7 +106,8 @@ def test_lanenet(image_path, weights_path, with_lane_fit=True):
     input_tensor = tf.placeholder(dtype=tf.float32, shape=[1, 256, 512, 3], name='input_tensor')
 
     net = lanenet.LaneNet(phase='test', cfg=CFG)
-    binary_seg_ret, instance_seg_ret = net.inference(input_tensor=input_tensor, name='LaneNet')
+    # binary_seg_ret, instance_seg_ret = net.inference(input_tensor=input_tensor, name='LaneNet')
+    binary_seg_ret, instance_seg_ret, cam = net.inference(input_tensor=input_tensor, target_class=1, name='LaneNet')
 
     postprocessor = lanenet_postprocess.LaneNetPostProcessor(cfg=CFG)
 
@@ -116,13 +134,13 @@ def test_lanenet(image_path, weights_path, with_lane_fit=True):
         t_start = time.time()
         loop_times = 500
         for i in range(loop_times):
-            binary_seg_image, instance_seg_image = sess.run(
-                [binary_seg_ret, instance_seg_ret],
+            binary_seg_image, instance_seg_image, cam_image = sess.run(
+                [binary_seg_ret, instance_seg_ret, cam],
                 feed_dict={input_tensor: [image]}
             )
         t_cost = time.time() - t_start
         t_cost /= loop_times
-        LOG.info('Single imgae inference cost time: {:.5f}s'.format(t_cost))
+        LOG.info('Single imgae  cost time: {:.5f}s'.format(t_cost))
 
         postprocess_result = postprocessor.postprocess(
             binary_seg_result=binary_seg_image[0],
@@ -150,6 +168,47 @@ def test_lanenet(image_path, weights_path, with_lane_fit=True):
         plt.imshow(embedding_image[:, :, (2, 1, 0)])
         plt.figure('binary_image')
         plt.imshow(binary_seg_image[0] * 255, cmap='gray')
+        # plt.figure('cam_image')
+        # cam_heatmap = cv2.applyColorMap(np.uint8(255 * cam_image[0]), cv2.COLORMAP_JET)
+        # cam_heatmap = cv2.resize(cam_heatmap, (image_vis.shape[1], image_vis.shape[0]))
+        # cam_overlaid = cv2.addWeighted(image_vis, 0.5, cam_heatmap, 0.5, 0)
+        # plt.imshow(cam_overlaid[:, :, (2, 1, 0)])
+        # plt.figure('cam_image')
+        # # 添加阈值处理
+        # threshold = 0.5
+        # cam_image[cam_image < threshold] = 0
+        
+        # # 降低透明度和改变叠加方式
+        # alpha = 0.3
+        # cam_heatmap = cv2.applyColorMap(np.uint8(255 * cam_image[0]), cv2.COLORMAP_JET)
+        # cam_heatmap = cv2.resize(cam_heatmap, (image_vis.shape[1], image_vis.shape[0]))
+        # cam_overlaid = cv2.addWeighted(image_vis, 1-alpha, cam_heatmap, alpha, 0)
+
+        # plt.imshow(cam_overlaid[:, :, (2, 1, 0)])
+        # plt.axis('off')
+        plt.figure('cam_image')
+    
+        # 更高的阈值过滤
+        threshold = 0.7
+        cam_image[cam_image < threshold] = 0
+        
+        # 使用更柔和的colormap和更低的透明度
+        alpha = 0.2  # 降低透明度
+        cam_image = (cam_image - cam_image.min()) / (cam_image.max() - cam_image.min())  # 归一化
+        cam_heatmap = cv2.applyColorMap(np.uint8(255 * cam_image[0]), cv2.COLORMAP_HOT)  # 使用HOT colormap
+        cam_heatmap = cv2.resize(cam_heatmap, (image_vis.shape[1], image_vis.shape[0]))
+        
+        # 更正维度不匹配问题
+        cam_image_resized = cv2.resize(cam_image[0], (image_vis.shape[1], image_vis.shape[0]))
+        mask = cam_image_resized > 0
+        mask = np.stack([mask] * 3, axis=2)  # 扩展到3通道
+
+        # 使用修正后的mask
+        cam_overlaid = image_vis.copy()
+        cam_overlaid[mask] = cv2.addWeighted(image_vis, 1-alpha, cam_heatmap, alpha, 0)[mask]
+        
+        plt.imshow(cam_overlaid[:, :, (2, 1, 0)])
+        plt.axis('off')
         plt.show()
 
     sess.close()

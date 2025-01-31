@@ -88,8 +88,14 @@ class LaneNetTusimpleTrainer(object):
             name='LaneNet',
             reuse=False
         )
-        self._binary_prediciton, self._instance_prediction = self._model.inference(
+        # self._binary_prediciton, self._instance_prediction = self._model.inference(
+        #     input_tensor=self._input_src_image,
+        #     name='LaneNet',
+        #     reuse=True
+        # )
+        self._binary_prediciton, self._instance_prediction, self._cam = self._model.inference(
             input_tensor=self._input_src_image,
+            target_class=1,
             name='LaneNet',
             reuse=True
         )
